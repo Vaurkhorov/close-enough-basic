@@ -106,7 +106,26 @@ func get_token(lexer *Lexer) (Position, int, string) {
 }
 
 func get_number(lexer *Lexer) string {
-	// !TODO
+	number := ""
 
-	return "123"
+	for {
+		t, _, err := lexer.reader.ReadRune()
+
+		if err != nil {
+			if err == io.EOF {
+				return number
+			}
+
+			panic(err)
+		}
+
+		if n, err := strconv.ParseInt(string(t), 10, 4); err != nil {
+			number += fmt.Sprintf("%c", n)
+		} else if err == strconv.ErrSyntax {
+			lexer.reader.UnreadRune()
+			return number
+		} else {
+			panic(err)
+		}
+	}
 }
