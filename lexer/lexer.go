@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"unicode"
 
 	"github.com/vaurkhorov/close-enough-basic/token"
 )
@@ -86,6 +87,9 @@ func get_token(lexer *Lexer) (Position, int, string) {
 			lexer.position.column++
 			return lexer.position, token.Assignment, "="
 
+		case ' ':
+			continue
+
 		case '\n':
 			lexer.position.row++
 			return lexer.position, token.CRLF, ";"
@@ -99,7 +103,16 @@ func get_token(lexer *Lexer) (Position, int, string) {
 				lexer.reader.UnreadRune()
 
 				return pos, token.Number, get_number(lexer)
+			} else if unicode.IsLetter(t) || t == '_' {
+				pos := Position{
+					row:    lexer.position.row,
+					column: lexer.position.column + 1,
+				}
+				lexer.reader.UnreadRune()
 
+				tok, ret := get_identifier(lexer)
+
+				return pos, tok, ret
 			}
 		}
 	}
@@ -113,6 +126,7 @@ func get_number(lexer *Lexer) string {
 
 		if err != nil {
 			if err == io.EOF {
+				lexer.reader.UnreadRune()
 				return number
 			}
 
@@ -121,11 +135,71 @@ func get_number(lexer *Lexer) string {
 
 		if n, err := strconv.ParseInt(string(t), 10, 4); err != nil {
 			number += fmt.Sprintf("%c", n)
+			lexer.position.column++
 		} else if err == strconv.ErrSyntax {
 			lexer.reader.UnreadRune()
 			return number
 		} else {
 			panic(err)
+		}
+	}
+}
+
+func get_identifier(lexer *Lexer) (int, string) {
+	identifier := ""
+	args := ""
+
+	// get just the identifier, break if '(' is encountered
+	for {
+		t, _, err := lexer.reader.ReadRune()
+
+		if err != nil {
+			if err == io.EOF {
+				lexer.reader.UnreadRune()
+				return token.Variable, identifier
+			}
+
+			panic(err)
+		}
+
+		if unicode.IsLetter(t) {
+			identifier += fmt.Sprintf("%c", t)
+			lexer.position.column++
+		} else if t == '(' {
+			lexer.position.column++
+			break
+		} else {
+			lexer.reader.UnreadRune()
+			return token.Variable, identifier
+		}
+	}
+
+	// '(' was encountered, so this has to be a function
+	// now we put the arguments in a comma separated string
+	for {
+		t, _, err := lexer.reader.ReadRune()
+
+		if err != nil {
+			if err == io.EOF {
+				panic("expected ')' before EOF")
+			}
+
+			panic(err)
+		}
+
+		if unicode.IsLetter(t) {
+			identifier += fmt.Sprintf("%c", t)
+			lexer.position.column++
+		} else if t == ')' {
+			lexer.position.column++
+			return token.Function, fmt.Sprintf("%v:%v", identifier, args)
+		} else if t == ',' {
+			args += ","
+			lexer.position.column++
+		} else if t == ' ' {
+			lexer.position.column++
+		} else {
+			panic("expected ')'")
 		}
 	}
 }
