@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"unicode"
 
 	"github.com/vaurkhorov/close-enough-basic/token"
 )
 
-func lex(path string) string {
+func Lex(path string) string {
 	// This is for testing
 
 	file, err := os.Open(path)
@@ -29,7 +28,7 @@ func lex(path string) string {
 			break
 		}
 
-		lexed += fmt.Sprintf("%d:%d\t%d\t%s\n", pos.row, pos.column, tok, lit)
+		lexed += fmt.Sprintf("%d:%d\t%s\t%s\n", pos.row, pos.column, token.ConstantNames[tok], lit)
 	}
 
 	return lexed
@@ -95,14 +94,16 @@ func get_token(lexer *Lexer) (Position, int, string) {
 			return lexer.position, token.CRLF, ";"
 
 		default:
-			if _, err := strconv.ParseInt(string(t), 10, 4); err != nil {
+			if unicode.IsDigit(t) {
 				pos := Position{
 					row:    lexer.position.row,
 					column: lexer.position.column + 1,
 				}
 				lexer.reader.UnreadRune()
 
-				return pos, token.Number, get_number(lexer)
+				num := get_number(lexer)
+
+				return pos, token.Number, num
 			} else if unicode.IsLetter(t) || t == '_' {
 				pos := Position{
 					row:    lexer.position.row,
@@ -133,16 +134,19 @@ func get_number(lexer *Lexer) string {
 			panic(err)
 		}
 
-		if n, err := strconv.ParseInt(string(t), 10, 4); err != nil {
-			number += fmt.Sprintf("%c", n)
+		if unicode.IsDigit(t) {
+			number += fmt.Sprintf("%c", t)
 			lexer.position.column++
-		} else if err == strconv.ErrSyntax {
+		} else { // if err == strconv.ErrSyntax
+			// fmt.Println("here.")
 			lexer.reader.UnreadRune()
-			return number
-		} else {
-			panic(err)
+			break
 		}
+		// else {
+		// 	panic(err)
+		// }
 	}
+	return number
 }
 
 func get_identifier(lexer *Lexer) (int, string) {
@@ -188,11 +192,18 @@ func get_identifier(lexer *Lexer) (int, string) {
 		}
 
 		if unicode.IsLetter(t) {
-			identifier += fmt.Sprintf("%c", t)
+			args += fmt.Sprintf("%c", t)
 			lexer.position.column++
-		} else if t == ')' {
+		} else if unicode.IsDigit(t) {
+			lexer.reader.UnreadRune()
+			args += get_number(lexer)
+		} else if t == rune(')') {
 			lexer.position.column++
-			return token.Function, fmt.Sprintf("%v:%v", identifier, args)
+			if args == "" {
+				return token.Function, identifier
+			} else {
+				return token.Function, fmt.Sprintf("%s:%s", identifier, args)
+			}
 		} else if t == ',' {
 			args += ","
 			lexer.position.column++
