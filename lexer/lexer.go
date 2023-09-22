@@ -86,7 +86,13 @@ func get_token(lexer *Lexer) (Position, int, string) {
 			lexer.position.column++
 			return lexer.position, token.Assignment, "="
 
+		case '"':
+			lexer.position.column++
+			str := get_str(lexer)
+			return lexer.position, token.String, str
+
 		case ' ':
+			lexer.position.column++
 			continue
 
 		case '\n':
@@ -137,14 +143,10 @@ func get_number(lexer *Lexer) string {
 		if unicode.IsDigit(t) {
 			number += fmt.Sprintf("%c", t)
 			lexer.position.column++
-		} else { // if err == strconv.ErrSyntax
-			// fmt.Println("here.")
+		} else {
 			lexer.reader.UnreadRune()
 			break
 		}
-		// else {
-		// 	panic(err)
-		// }
 	}
 	return number
 }
@@ -213,4 +215,52 @@ func get_identifier(lexer *Lexer) (int, string) {
 			panic("expected ')'")
 		}
 	}
+}
+
+func get_str(lexer *Lexer) string {
+	str := ""
+
+	// get just the identifier, break if '(' is encountered
+	for {
+		t, _, err := lexer.reader.ReadRune()
+
+		if err != nil {
+			if err == io.EOF {
+				panic("expected \" before EOF")
+			}
+
+			panic(err)
+		}
+
+		if t == '\\' {
+			escaped, _, escape_err := lexer.reader.ReadRune()
+
+			if escape_err != nil {
+				if escape_err == io.EOF {
+					panic("expected \" before EOF")
+				}
+
+				panic(escape_err)
+			}
+
+			if escaped == '\n' {
+				lexer.position.row++    // because of the newline
+				lexer.position.column++ // because of the '\'
+			} else {
+				lexer.position.column += 2
+			}
+
+			str += fmt.Sprintf("%c", escaped)
+		} else if t == '"' {
+			lexer.position.column++
+			break
+		} else if t == '\n' || t == '\r' {
+			panic("expected \" before newline")
+		} else {
+			str += fmt.Sprintf("%c", t)
+			lexer.position.column++
+		}
+	}
+
+	return str
 }

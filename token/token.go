@@ -5,6 +5,7 @@ const (
 	CRLF
 
 	Number
+	String
 
 	// Identifiers
 	Variable
@@ -23,6 +24,7 @@ var ConstantNames = map[int]string{
 	EOFToken:   "EOF",
 	CRLF:       "CRLF",
 	Number:     "Num",
+	String:     "Str",
 	Variable:   "Var",
 	Function:   "Fn",
 	Plus:       "Plus",
